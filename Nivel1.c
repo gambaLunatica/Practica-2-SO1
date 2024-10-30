@@ -100,6 +100,15 @@ char *read_line(char *line)
     }
     return ret;
 }
+
+int execute_line(char *line){
+    char *args [ARGS_SIZE];
+    if(parse_args(args,line)){
+    check_internal(args);
+    }
+    return 1;
+}
+
 int parse_args(char **args, char *line)
 {
     char *tok;
@@ -139,4 +148,66 @@ int parse_args(char **args, char *line)
 
     fprintf(stderr, GRIS_T "[parse_args()→ token %d: %s]\n" RESET, contTok, args[contTok]);
     return contTok;
+}
+
+int check_internal(char **args){
+    const char *coms[] = {"cd","export", "source", "jobs", "fg", "bg"};
+
+    if(strcmp(args[0],coms[0])==0){
+        internal_cd(args);
+    }
+    else if(strcmp(args[0],coms[1])==0){
+        internal_export(args);
+    }
+    else if(strcmp(args[0],coms[2])==0){
+        internal_source(args);
+    }
+    else if(strcmp(args[0],coms[3])==0){
+        internal_jobs(args);
+    }
+    else if(strcmp(args[0],coms[4])==0){
+        internal_fg(args);
+    }
+    else if(strcmp(args[0],coms[5])==0){
+        internal_bg(args);
+    }
+    else if(strcmp(args[0],"exit")==0){
+        printf("bye bye\n");
+        exit(0);
+    }
+    else {
+        //commands externs
+        return 0;
+    }
+    return 1;
+}
+
+int internal_cd(char **args) {
+       fprintf(stderr, GRIS_T "[internal_cd()→ Esta función cambiará de directorio]\n" RESET);   
+   return 1;
+}
+
+int internal_export(char **args) {
+      fprintf(stderr, GRIS_T "[internal_export()→ Esta función asignará valores a variablescd de entorno]\n" RESET);
+   return 1;
+}
+
+int internal_source(char **args) {
+      fprintf(stderr, GRIS_T "[internal_export()→ Esta función ejecutará un fichero de líneas de comandos]\n" RESET);
+   return 1;
+}
+
+int internal_jobs(char **args) {
+      fprintf(stderr, GRIS_T "[internal_export()→ Esta función mostrará el PID de los procesos que no estén en foreground]\n" RESET);
+   return 1;
+}
+
+int internal_fg(char **args) {
+      fprintf(stderr, GRIS_T "[internal_export()→ Envía un trabajo del background al foreground, o reactiva la ejecución en foreground de un trabajo que había sido detenido.]\n" RESET);
+   return 1;
+}
+
+int internal_bg(char **args) {
+      fprintf(stderr, GRIS_T "[internal_export()→ Envía un trabajo del background al foreground, o reactiva la ejecución en foreground de un trabajo que había sido detenido.]\n" RESET);
+   return 1;
 }
