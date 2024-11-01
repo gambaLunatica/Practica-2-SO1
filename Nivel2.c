@@ -35,6 +35,7 @@ int internal_source(char **args);
 int internal_jobs(char **args);
 int internal_fg(char **args);
 int internal_bg(char **args);
+char *eliminar_chars(char *str);
 
 // Variable para leer una line
 #define COMMAND_LINE_SIZE 1024
@@ -183,8 +184,54 @@ int check_internal(char **args){
 }
 
 int internal_cd(char **args) {
-       fprintf(stderr, GRIS_T "[internal_cd()→ Esta función cambiará de directorio]\n" RESET);   
-   return 1;
+    char buf[256];  // Buffer para almacenar el directorio actual
+
+    // Caso: comando "cd" sin argumentos (ir al directorio HOME)
+    if (args[1] == NULL) {
+        if (chdir(getenv("HOME")) == -1) {
+            perror("chdir");
+            return -1;
+        }
+    }
+    // Caso: comando "cd" con uno o más argumentos
+    else {
+        char temp[256];
+        strcpy(temp, args[1]);
+
+        // Bucle para concatenar argumentos adicionales si existen
+        for (int i = 2; args[i] != NULL; i++) {
+            strcat(temp, " ");
+            strcat(temp, args[i]);
+        }
+
+        // Eliminación de caracteres especiales
+        char *dir = eliminar_chars(temp);
+
+        // Cambiar al directorio especificado
+        if (chdir(dir) == -1) {
+            perror("chdir");
+            return -1;
+        } else {
+            getcwd(buf, sizeof(buf));
+            printf("Directorio actual: %s\n", buf);
+        }
+    }
+
+    return 1;
+}
+
+// Función para eliminar caracteres especiales '', "", y /
+char *eliminar_chars(char *str) {
+    static char clean_str[256];
+    int j = 0;
+    for (int i = 0; str[i] != '\0'; i++) {
+        // Omite caracteres ' " /
+        if (str[i] != '\'' && str[i] != '\"' && str[i] != '/') {
+            clean_str[j++] = str[i];
+        }
+    }
+    clean_str[j] = '\0';
+    return clean_str;
 }
 
 int internal_export(char **args) {
