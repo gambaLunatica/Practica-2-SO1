@@ -47,7 +47,11 @@ int main()
     // bucle infinito
     while (1)
     {
-        read_line(line);
+        imprimir_prompt();
+        if (read_line(line))
+        {
+            execute_line(line);
+        }
     }
 }
 void imprimir_prompt()
@@ -76,15 +80,25 @@ void imprimir_prompt()
 }
 char *read_line(char *line)
 {
-    imprimir_prompt();
 
     // leer linea
     char *ret = fgets(line, COMMAND_LINE_SIZE, stdin);
     // si es diferente de NULL o que empieze por #
     if (ret && *ret != '#')
     {
+        /**
+         * memchr busca la primera aparación de un caracter en los primeros n bytes de una secuencia
+         * void *memchr(const void *ptr, int value, size_t num);
+         * ptr: punerto el area de memoria donde bsucar
+         * value: caracter que estamos buscando
+         * num: max num bytes en ptr donde buscar el caracter value
+         * return: puntero a la aparición del caracter, NULL si no lo encuentra
+         */
         char *pos = memchr(line, '\n', strlen(line));
-        *pos = '\0';
+        if (pos != NULL)
+        {
+            *pos = '\0';
+        }
     }
     else if (ret == NULL)
     { /*si NULL o EOF*/
@@ -102,10 +116,13 @@ char *read_line(char *line)
     return ret;
 }
 
-int execute_line(char *line){
-    char *args [ARGS_SIZE];
-    if(parse_args(args,line)){
-    check_internal(args);
+int execute_line(char *line)
+{
+    char *args[ARGS_SIZE];
+    int tok = parse_args(args, line);
+    if (tok > 0)
+    {
+        check_internal(args);
     }
     return 1;
 }
@@ -115,23 +132,30 @@ int parse_args(char **args, char *line)
     char *tok;
     int contTok = 0;
 
-    tok = strtok(line, " \t\n");
-    if (tok = NULL)
-    {
-        args[contTok] = NULL;
-        return -1;
-    }
-    args[contTok] = tok;
-    contTok++;
+    // obtenemso el primer token
+    /**
+     *
+     */
+    tok = strtok(line, " \t\n\r");
+
     // bucle de lectura de todos los tokens de la linea
     while (tok != NULL)
     {
+        if (tok == NULL)
+        {
+            args[contTok] = NULL;
+            return -1;
+            break;
+        }
+
         args[contTok] = tok;
         contTok++;
         // Obtenemos el siguiente token
-        tok = strtok(NULL, " \t\n");
+        tok = strtok(NULL, " \t\n\r");
     }
+    //final tokens
     args[contTok] = NULL;
+    //MOstramos los tokens
     for (int j = 0; j < contTok; j++)
     {
         if ((char)*args[j] == '#')
@@ -235,7 +259,31 @@ char *eliminar_chars(char *str) {
 }
 
 int internal_export(char **args) {
-      fprintf(stderr, GRIS_T "[internal_export()→ Esta función asignará valores a variablescd de entorno]\n" RESET);
+    char *nombre = NULL;
+    char *valor = NULL;
+    //Verificamos el formato
+    if(args[1] == NULL || strchr(args[1], '=') == NULL){
+        fprintf(stderr,GRIS_T"[internal_export()->nombre: %s]\n"RESET,nombre);
+        fprintf(stderr,GRIS_T"[internal_export()->valor: %s]\n"RESET,valor);
+        fprintf(stderr,ROJO_T"Error de Sintaxis.Uso: export NOMBRE=VALOR\n");
+        return -1;
+    }
+    // Dividir args[1] en NOMBRE y VALOR usando strtok
+    nombre = strtok(args[1], "=");
+    valor = strtok(NULL, "");
+
+    //verificamso que ambas partes son válidas
+    if(nombre == NULL || valor == NULL){
+        fprintf(stderr,GRIS_T"[internal_export()->nombre: %s]\n"RESET,nombre);
+        fprintf(stderr,GRIS_T"[internal_export()->valor: %s]\n"RESET,valor);
+        fprintf(stderr,ROJO_T"Error de Sintaxis.Uso: export NOMBRE=VALOR\n");
+        return -1;
+    }
+    fprintf(stderr,GRIS_T"[internal_export()->nombre: %s]\n"RESET,nombre);
+    fprintf(stderr,GRIS_T"[internal_export()->valor: %s]\n"RESET,valor);
+    fprintf(stderr,GRIS_T"[internal_export()->antiguo valor para USER: %s]\n"RESET,getenv("USER"));
+    setenv(nombre,valor,1);
+    fprintf(stderr,GRIS_T"[internal_export()->nuevo valor para USER: %s]\n"RESET,getenv("USER"));
    return 1;
 }
 
