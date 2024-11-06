@@ -46,7 +46,11 @@ int main()
     // bucle infinito
     while (1)
     {
-        read_line(line);
+        imprimir_prompt();
+        if (read_line(line))
+        {
+            execute_line(line);
+        }
     }
 }
 void imprimir_prompt()
@@ -75,15 +79,25 @@ void imprimir_prompt()
 }
 char *read_line(char *line)
 {
-    imprimir_prompt();
 
     // leer linea
     char *ret = fgets(line, COMMAND_LINE_SIZE, stdin);
     // si es diferente de NULL o que empieze por #
     if (ret && *ret != '#')
     {
+        /**
+         * memchr busca la primera aparación de un caracter en los primeros n bytes de una secuencia
+         * void *memchr(const void *ptr, int value, size_t num);
+         * ptr: punerto el area de memoria donde bsucar
+         * value: caracter que estamos buscando
+         * num: max num bytes en ptr donde buscar el caracter value
+         * return: puntero a la aparición del caracter, NULL si no lo encuentra
+         */
         char *pos = memchr(line, '\n', strlen(line));
-        *pos = '\0';
+        if (pos != NULL)
+        {
+            *pos = '\0';
+        }
     }
     else if (ret == NULL)
     { /*si NULL o EOF*/
@@ -101,10 +115,13 @@ char *read_line(char *line)
     return ret;
 }
 
-int execute_line(char *line){
-    char *args [ARGS_SIZE];
-    if(parse_args(args,line)){
-    check_internal(args);
+int execute_line(char *line)
+{
+    char *args[ARGS_SIZE];
+    int tok = parse_args(args, line);
+    if (tok > 0)
+    {
+        check_internal(args);
     }
     return 1;
 }
@@ -114,23 +131,30 @@ int parse_args(char **args, char *line)
     char *tok;
     int contTok = 0;
 
-    tok = strtok(line, " \t\n");
-    if (tok = NULL)
-    {
-        args[contTok] = NULL;
-        return -1;
-    }
-    args[contTok] = tok;
-    contTok++;
+    // obtenemso el primer token
+    /**
+     *
+     */
+    tok = strtok(line, " \t\n\r");
+
     // bucle de lectura de todos los tokens de la linea
     while (tok != NULL)
     {
+        if (tok == NULL)
+        {
+            args[contTok] = NULL;
+            return -1;
+            break;
+        }
+
         args[contTok] = tok;
         contTok++;
         // Obtenemos el siguiente token
-        tok = strtok(NULL, " \t\n");
+        tok = strtok(NULL, " \t\n\r");
     }
+    //final tokens
     args[contTok] = NULL;
+    //MOstramos los tokens
     for (int j = 0; j < contTok; j++)
     {
         if ((char)*args[j] == '#')
@@ -150,64 +174,79 @@ int parse_args(char **args, char *line)
     return contTok;
 }
 
-int check_internal(char **args){
-    const char *coms[] = {"cd","export", "source", "jobs", "fg", "bg"};
+int check_internal(char **args)
+{
+    const char *coms[] = {"cd", "export", "source", "jobs", "fg", "bg"};
 
-    if(strcmp(args[0],coms[0])==0){
+    if (strcmp(args[0], coms[0]) == 0)
+    {
         internal_cd(args);
     }
-    else if(strcmp(args[0],coms[1])==0){
+    else if (strcmp(args[0], coms[1]) == 0)
+    {
         internal_export(args);
     }
-    else if(strcmp(args[0],coms[2])==0){
+    else if (strcmp(args[0], coms[2]) == 0)
+    {
         internal_source(args);
     }
-    else if(strcmp(args[0],coms[3])==0){
+    else if (strcmp(args[0], coms[3]) == 0)
+    {
         internal_jobs(args);
     }
-    else if(strcmp(args[0],coms[4])==0){
+    else if (strcmp(args[0], coms[4]) == 0)
+    {
         internal_fg(args);
     }
-    else if(strcmp(args[0],coms[5])==0){
+    else if (strcmp(args[0], coms[5]) == 0)
+    {
         internal_bg(args);
     }
-    else if(strcmp(args[0],"exit")==0){
+    else if (strcmp(args[0], "exit") == 0)
+    {
         printf("bye bye\n");
         exit(0);
     }
-    else {
-        //commands externs
+    else
+    {
+        // commands externs
         return 0;
     }
     return 1;
 }
 
-int internal_cd(char **args) {
-       fprintf(stderr, GRIS_T "[internal_cd()→ Esta función cambiará de directorio]\n" RESET);   
-   return 1;
+int internal_cd(char **args)
+{
+    fprintf(stderr, GRIS_T "[internal_cd()→ Esta función cambiará de directorio]\n" RESET);
+    return 1;
 }
 
-int internal_export(char **args) {
-      fprintf(stderr, GRIS_T "[internal_export()→ Esta función asignará valores a variablescd de entorno]\n" RESET);
-   return 1;
+int internal_export(char **args)
+{
+    fprintf(stderr, GRIS_T "[internal_export()→ Esta función asignará valores a variablescd de entorno]\n" RESET);
+    return 1;
 }
 
-int internal_source(char **args) {
-      fprintf(stderr, GRIS_T "[internal_export()→ Esta función ejecutará un fichero de líneas de comandos]\n" RESET);
-   return 1;
+int internal_source(char **args)
+{
+    fprintf(stderr, GRIS_T "[internal_export()→ Esta función ejecutará un fichero de líneas de comandos]\n" RESET);
+    return 1;
 }
 
-int internal_jobs(char **args) {
-      fprintf(stderr, GRIS_T "[internal_export()→ Esta función mostrará el PID de los procesos que no estén en foreground]\n" RESET);
-   return 1;
+int internal_jobs(char **args)
+{
+    fprintf(stderr, GRIS_T "[internal_export()→ Esta función mostrará el PID de los procesos que no estén en foreground]\n" RESET);
+    return 1;
 }
 
-int internal_fg(char **args) {
-      fprintf(stderr, GRIS_T "[internal_export()→ Envía un trabajo del background al foreground, o reactiva la ejecución en foreground de un trabajo que había sido detenido.]\n" RESET);
-   return 1;
+int internal_fg(char **args)
+{
+    fprintf(stderr, GRIS_T "[internal_export()→ Envía un trabajo del background al foreground, o reactiva la ejecución en foreground de un trabajo que había sido detenido.]\n" RESET);
+    return 1;
 }
 
-int internal_bg(char **args) {
-      fprintf(stderr, GRIS_T "[internal_export()→ Envía un trabajo del background al foreground, o reactiva la ejecución en foreground de un trabajo que había sido detenido.]\n" RESET);
-   return 1;
+int internal_bg(char **args)
+{
+    fprintf(stderr, GRIS_T "[internal_export()→ Envía un trabajo del background al foreground, o reactiva la ejecución en foreground de un trabajo que había sido detenido.]\n" RESET);
+    return 1;
 }
