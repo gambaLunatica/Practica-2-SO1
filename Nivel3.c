@@ -153,66 +153,66 @@ char *read_line(char *line)
 int execute_line(char *line)
 {
     char *args[ARGS_SIZE];
+    char temp[COMMAND_LINE_SIZE];
+    char *eliminador;
+
+    // Guardar la línea original en `temp` antes de analizarla y corregir comentarios
+    memset(temp, '\0', sizeof(temp));
+    strcpy(temp, line);
+    eliminador = strchr(temp, '#');
+    if (eliminador != NULL)
+    {
+        *eliminador = '\0'; // Eliminar comentarios en la línea
+    }
+
     int tok = parse_args(args, line); // Obtener los tokens de la línea de comandos
 
     // Si hay tokens, comprobar si es un comando interno
     if (tok > 0)
     {
-        if (check_internal(args))
-        {
-            return 1; // Si es un comando interno, se maneja aquí y no necesita un proceso hijo
-        }
+        int ext = check_internal(args);
 
-        // Crear un proceso hijo para ejecutar el comando externo
-        pid_t pid = fork();
-
-        if (pid == -1)
-        {
-            perror("fork");
-            return -1;
-        }
-        else if (pid == 0)
-        {
-            // PROCESO HIJO: Ejecutar el comando externo con execvp
-            execvp(args[0], args);
-
-            // Si execvp falla, se muestra el error y se termina el proceso
-            fprintf(stderr, "%s: command not found\n", args[0]);
-            perror("execvp");
-            exit(-1);
-        }
-        else
-        {
-            // PROCESO PADRE: Actualizar jobs_list[0] y esperar al proceso hijo
-            jobs_list[0].pid = pid;
-            jobs_list[0].estado = 'E';
-            strncpy(jobs_list[0].cmd, line, COMMAND_LINE_SIZE - 1);
-            jobs_list[0].cmd[COMMAND_LINE_SIZE - 1] = '\0';
-
-            printf("Parent PID: %d, Child PID: %d\n", getpid(), pid);
-            printf("Shell: %s\n", mi_shell);
-            printf("Foreground command: %s\n", jobs_list[0].cmd);
-
-            // Esperar al hijo y procesar el estado
+        if (ext == 2)
+        { // Comando externo
+            pid_t pid = fork();
             int status;
-            waitpid(pid, &status, 0);
 
-            if (WIFEXITED(status))
+            if (pid == -1)
             {
-                printf("Child process exited with status: %d\n", WEXITSTATUS(status));
-            }
-            else if (WIFSIGNALED(status))
-            {
-                printf("Child process was terminated by signal: %d\n", WTERMSIG(status));
+                perror("fork");
+                return -1;
             }
 
-            // Reiniciar jobs_list[0] para indicar que no hay procesos en foreground
-            jobs_list[0].pid = 0;
-            jobs_list[0].estado = 'N';
-            memset(jobs_list[0].cmd, '\0', COMMAND_LINE_SIZE);
+            if (pid == 0)
+            { // PROCESO HIJO
+                if (execvp(args[0], args) == -1)
+                {
+                    fprintf(stderr, "%s: no se encontró la orden\n", args[0]);
+                    exit(-1); // Terminar el hijo si execvp falla
+                }
+            }
+            else
+            { // PROCESO PADRE
+                jobs_list[0].pid = pid;
+                jobs_list[0].status = 'E';
+                strcpy(jobs_list[0].cmd, temp);
+
+                // Esperar a que el hijo termine
+                if (wait(&status) == -1)
+                {
+                    perror("wait() error");
+                }
+                else if (WIFEXITED(status))
+                {
+                    jobs_list[0].pid = 0;
+                    jobs_list[0].status = 'F';
+                    memset(jobs_list[0].cmd, '\0', sizeof(jobs_list[0].cmd));
+                }
+            }
         }
+        return 1;
     }
-    return 1;
+    return 0;
 }
 
 int parse_args(char **args, char *line)
@@ -401,12 +401,44 @@ int internal_export(char **args)
     return 1;
 }
 
-int internal_source(char **args)
-{
-    fprintf(stderr, GRIS_T "[internal_export()→ Esta función ejecutará un fichero de líneas de comandos]\n" RESET);
+int internal_source(char **args) {
+    FILE *file;
+    char line[COMMAND_LINE_SIZE];
+
+    // Verificación de los argumentos
+    if (args[1] == NULL) {
+        fprintf(stderr,ROJO_T"Error de sintaxis.Uso: source <nobre_fichero>\n"RESET);
+        return -1;
+    }
+
+    // Abrir el archivo en modo de lectura
+    file = fopen(args[1], "r");
+    if (file == NULL) {
+        fprintf(stderr,ROJO_T"Error: %s\n"RESET,strerror(errno));
+        return -1;
+    }
+
+    // Leer línea a línea del archivo
+    while (fgets(line, sizeof(line), file) != NULL) {
+        // Eliminar el salto de línea al final de la línea leída
+        char *newline = strchr(line, '\n');
+        if (newline != NULL) {
+            //poner en la direccion del caracter '\n' el caracter '\0'
+            *newline = '\0';
+        }
+
+        // Forzar el vaciado del stream del archivo
+        fflush(file);
+
+        // Ejecutar la línea leída usando execute_line
+        execute_line(line);
+    }
+
+    // Cerrar el archivo
+    fclose(file);
+
     return 1;
 }
-
 int internal_jobs(char **args)
 {
     fprintf(stderr, GRIS_T "[internal_export()→ Esta función mostrará el PID de los procesos que no estén en foreground]\n" RESET);
