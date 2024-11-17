@@ -6,6 +6,9 @@
 #include <limits.h>
 #include <unistd.h>
 #include <linux/limits.h>
+#include <errno.h>
+#include <sys/wait.h>
+
 // definir promp
 #define PROMPT '$'
 
@@ -74,7 +77,7 @@ int main(int argc, char *argv[])
     memset(jobs_list[0].cmd, '\0', COMMAND_LINE_SIZE);
 
     // Guardar el nombre del comando en mi_shell a partir de argv[0]
-    strncpy(mi_shell, argv[0], COMMAND_LINE_SIZE - 1);
+    strncpy(mi_shell, argv[0], COMMAND_LINE_SIZE);
     mi_shell[COMMAND_LINE_SIZE - 1] = '\0'; // Asegurar terminación de la cadena
 
     // bucle infinito
@@ -175,9 +178,9 @@ int execute_line(char *line)
         if (ext == 2)
         { // Comando externo
             pid_t pid = fork();
-            int status;
+            int estado;
 
-            if (pid == -1)
+            if (pid < 0)
             {
                 perror("fork");
                 return -1;
@@ -194,20 +197,14 @@ int execute_line(char *line)
             else
             { // PROCESO PADRE
                 jobs_list[0].pid = pid;
-                jobs_list[0].status = 'E';
-                strcpy(jobs_list[0].cmd, temp);
+                jobs_list[0].estado = 'E';
+                strncpy(jobs_list[0].cmd, line, COMMAND_LINE_SIZE);
 
                 // Esperar a que el hijo termine
-                if (wait(&status) == -1)
-                {
-                    perror("wait() error");
-                }
-                else if (WIFEXITED(status))
-                {
-                    jobs_list[0].pid = 0;
-                    jobs_list[0].status = 'F';
-                    memset(jobs_list[0].cmd, '\0', sizeof(jobs_list[0].cmd));
-                }
+                waitpid(pid, &estado, 0);
+                jobs_list[0].pid = 0;
+                jobs_list[0].estado = 'N';
+                memset(jobs_list[0].cmd, 0, COMMAND_LINE_SIZE);
             }
         }
         return 1;
@@ -401,29 +398,34 @@ int internal_export(char **args)
     return 1;
 }
 
-int internal_source(char **args) {
+int internal_source(char **args)
+{
     FILE *file;
     char line[COMMAND_LINE_SIZE];
 
     // Verificación de los argumentos
-    if (args[1] == NULL) {
-        fprintf(stderr,ROJO_T"Error de sintaxis.Uso: source <nobre_fichero>\n"RESET);
+    if (args[1] == NULL)
+    {
+        fprintf(stderr, ROJO_T "Error de sintaxis.Uso: source <nobre_fichero>\n" RESET);
         return -1;
     }
 
     // Abrir el archivo en modo de lectura
     file = fopen(args[1], "r");
-    if (file == NULL) {
-        fprintf(stderr,ROJO_T"Error: %s\n"RESET,strerror(errno));
+    if (file == NULL)
+    {
+        fprintf(stderr, ROJO_T "Error: %s\n" RESET, strerror(errno));
         return -1;
     }
 
     // Leer línea a línea del archivo
-    while (fgets(line, sizeof(line), file) != NULL) {
+    while (fgets(line, sizeof(line), file) != NULL)
+    {
         // Eliminar el salto de línea al final de la línea leída
         char *newline = strchr(line, '\n');
-        if (newline != NULL) {
-            //poner en la direccion del caracter '\n' el caracter '\0'
+        if (newline != NULL)
+        {
+            // poner en la direccion del caracter '\n' el caracter '\0'
             *newline = '\0';
         }
 
