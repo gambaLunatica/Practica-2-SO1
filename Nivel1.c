@@ -220,7 +220,7 @@ int internal_cd(char **args)
     fprintf(stderr, GRIS_T "[internal_cd()→ Esta función cambiará de directorio]\n" RESET);
     return 1;
 }
-
+//NO furula lol
 int internal_export(char **args)
 {
     fprintf(stderr, GRIS_T "[internal_export()→ Esta función asignará valores a variablescd de entorno]\n" RESET);
