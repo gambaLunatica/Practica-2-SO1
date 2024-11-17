@@ -212,6 +212,9 @@ int internal_cd(char **args) {
 
     // Caso: comando "cd" sin argumentos (ir al directorio HOME)
     if (args[1] == NULL) {
+        /**
+         * getenv()
+         */
         if (chdir(getenv("HOME")) == -1) {
             perror("chdir");
             return -1;
