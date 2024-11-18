@@ -6,6 +6,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <linux/limits.h>
+#include <signal.h>
 #include <errno.h>
 #include <sys/wait.h>
 
@@ -189,6 +190,7 @@ int execute_line(char *line)
 
             if (pid == 0)
             { // PROCESO HIJO
+                signal(SIGINT, SIG_IGN);
                 if (execvp(args[0], args) == -1)
                 {
                     fprintf(stderr, "%s: no se encontró la orden\n", args[0]);
@@ -458,4 +460,29 @@ int internal_bg(char **args)
 {
     fprintf(stderr, GRIS_T "[internal_export()→ Envía un trabajo del background al foreground, o reactiva la ejecución en foreground de un trabajo que había sido detenido.]\n" RESET);
     return 1;
+}
+void ctrlc(int signum) {
+    printf("\n");
+    struct info_job job = jobs_list[0];
+    if (job.pid > 0) {
+        if (strcmp(job.cmd, mi_shell) != 0) {
+            kill(job.pid, SIGTERM);
+        } else {
+            ERROR("señal SIGTERM no enviada: el proceso en foreground es el shell");
+        }
+    } else {
+        ERROR("señal SIGTERM no enviada: no hay ningun proceso en foreground");
+    }
+}
+void reaper(int signum) {
+    signal(SIGCHLD, reaper);
+    int status = 0;
+    int pid = 0;
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        if (pid == jobs_list[0].pid) {
+            jobs_list[0].pid = 0;
+            jobs_list[0].estado = 'F';
+            memset(jobs_list[0].cmd, 0, COMMAND_LINE_SIZE);
+        }
+    }
 }
