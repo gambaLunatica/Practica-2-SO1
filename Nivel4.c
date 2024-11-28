@@ -40,6 +40,8 @@ int internal_jobs(char **args);
 int internal_fg(char **args);
 int internal_bg(char **args);
 char *eliminar_chars(char *str);
+void ctrlc(int signum);
+void reaper(int signum);
 
 // Variable para leer una line
 #define COMMAND_LINE_SIZE 1024
@@ -176,9 +178,10 @@ int execute_line(char *line)
     if (tok > 0)
     {
         int ext = check_internal(args);
-
-        if (ext == 2)
+        printf("ext = %d\n", ext);
+        if (ext == 0)
         { // Comando externo
+        
             pid_t pid = fork();
             int estado;
 
@@ -203,6 +206,15 @@ int execute_line(char *line)
                 jobs_list[0].estado = 'E';
                 strncpy(jobs_list[0].cmd, line, COMMAND_LINE_SIZE);
 
+                printf("[execute_line()→ PID padre: %d (%s)]\n", getpid(), mi_shell);
+                printf("[execute_line()→ PID hijo: %d (%s)]\n", pid, line);
+
+                /**  Bloquear hasta que llegue una señal
+                while (jobs_list[0].pid > 0)
+                {
+                    pause();
+                }*/
+               
                 // Esperar a que el hijo termine
                 waitpid(pid, &estado, 0);
                 jobs_list[0].pid = 0;
@@ -461,28 +473,46 @@ int internal_bg(char **args)
     fprintf(stderr, GRIS_T "[internal_export()→ Envía un trabajo del background al foreground, o reactiva la ejecución en foreground de un trabajo que había sido detenido.]\n" RESET);
     return 1;
 }
-void ctrlc(int signum) {
-    printf("\n");
+void ctrlc(int signum)
+{
+    printf("\n[ctrlc()→ Señal SIGINT recibida]\n");
     struct info_job job = jobs_list[0];
-    if (job.pid > 0) {
-        if (strcmp(job.cmd, mi_shell) != 0) {
+    if (job.pid > 0)
+    {
+        if (strcmp(job.cmd, mi_shell) != 0)
+        {
+            printf("[ctrlc()→ Enviando SIGTERM al proceso hijo %d (%s)]\n", jobs_list[0].pid, jobs_list[0].cmd);
             kill(job.pid, SIGTERM);
-        } else {
-            ERROR("señal SIGTERM no enviada: el proceso en foreground es el shell");
         }
-    } else {
-        ERROR("señal SIGTERM no enviada: no hay ningun proceso en foreground");
+        else
+        {
+            printf("[ctrlc()→ No hay proceso en foreground o es el shell]\n");
+        }
+    }
+    else
+    {
+        printf("señal SIGTERM no enviada: no hay ningun proceso en foreground");
     }
 }
-void reaper(int signum) {
+void reaper(int signum)
+{
     signal(SIGCHLD, reaper);
     int status = 0;
     int pid = 0;
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        if (pid == jobs_list[0].pid) {
-            jobs_list[0].pid = 0;
-            jobs_list[0].estado = 'F';
-            memset(jobs_list[0].cmd, 0, COMMAND_LINE_SIZE);
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
+    {
+        printf("[reaper()→ Proceso hijo %d (%s) finalizado ", pid, jobs_list[0].cmd);
+        if (WIFEXITED(status))
+        {
+            printf("con exit code %d]\n", WEXITSTATUS(status));
         }
+        else if (WIFSIGNALED(status))
+        {
+            printf("por señal %d]\n", WTERMSIG(status));
+        }
+
+        jobs_list[0].pid = 0;
+        jobs_list[0].estado = 'F';
+        memset(jobs_list[0].cmd, '\0', COMMAND_LINE_SIZE);
     }
 }
