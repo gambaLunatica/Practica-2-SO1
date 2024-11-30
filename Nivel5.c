@@ -460,8 +460,11 @@ int internal_source(char **args)
 }
 int internal_jobs(char **args)
 {
-    fprintf(stderr, GRIS_T "[internal_export()→ Esta función mostrará el PID de los procesos que no estén en foreground]\n" RESET);
-    return 1;
+    for (size_t i = 1; i <= n_job; i++)
+    {
+        printf("[%d] %d %c %s\n", i, jobs_list[i].pid, jobs_list[i].estado, jobs_list[i].cmd);
+    }
+        return 1;
 }
 
 int internal_fg(char **args)
