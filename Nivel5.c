@@ -183,7 +183,7 @@ int execute_line(char *line)
         printf("ext = %d\n", ext);
         if (ext == 0)
         { // Comando externo
-        
+
             pid_t pid = fork();
             int estado;
 
@@ -216,7 +216,7 @@ int execute_line(char *line)
                 {
                     pause();
                 }*/
-               
+
                 // Esperar a que el hijo termine
                 waitpid(pid, &estado, 0);
                 jobs_list[0].pid = 0;
@@ -518,39 +518,72 @@ void reaper(int signum)
         memset(jobs_list[0].cmd, '\0', COMMAND_LINE_SIZE);
     }
 }
-int is_background(char **args){
-    for(int i = 0; args[0] != NULL; i++){
-        if(strcmp(args[i], '&') == 0){
+int is_background(char **args)
+{
+    for (int i = 0; args[0] != NULL; i++)
+    {
+        if (strcmp(args[i], '&') == 0)
+        {
             args[0] = NULL;
             return 1;
         }
     }
     return 0;
 }
-int jobs_list_add(pid_t pid, char estado, char *cmd){
+int jobs_list_add(pid_t pid, char estado, char *cmd)
+{
     n_job++;
-    if(n_job < N_JOBS){
+    if (n_job < N_JOBS)
+    {
         jobs_list[n_job].pid = pid;
         jobs_list[n_job].estado = estado;
-        strcpy(jobs_list[n_job].cmd,cmd);
+        strcpy(jobs_list[n_job].cmd, cmd);
         return 1;
     }
     return 0;
 }
-int job_list_find(pid_t pid){
+int job_list_find(pid_t pid)
+{
     for (size_t i = 0; i < sizeof(jobs_list); i++)
     {
-        if(jobs_list[i].pid == pid){
+        if (jobs_list[i].pid == pid)
+        {
             return i;
         }
     }
     return -1;
 }
-int jobs_list_remove(int pos){
+int jobs_list_remove(int pos)
+{
     jobs_list[pos].pid = jobs_list[n_job].pid;
     jobs_list[pos].estado = jobs_list[n_job].estado;
     strcmp(jobs_list[pos].cmd, jobs_list[n_job].cmd);
     n_job--;
     return 1;
 }
+void ctrlz(int signum)
+{
+    pid_t pid;
+    pid = getpid();
+    if (jobs_list[0].pid)
+    {
+        if (strcmp(jobs_list[0].cmd, mi_shell) != 0)
+        {
+            kill(jobs_list[0].pid, SIGSTOP);
+            fprintf(stderr, GRIS_T "\n[ctrlz()->Soy el proceso con PID %d (%s), el proceso en foreground es %d (%s)]" RESET, pid, mi_shell, jobs_list[0].pid, jobs_list[0].cmd);
+            fprintf(stderr, GRIS_T "\n[ctrlz()->Señal %d enviada a %d (%s) por %d (%s)]\n" RESET, SIGTERM, jobs_list[0].pid, jobs_list[0].cmd, pid, mi_shell);
+            jobs_list[0].estado = 'D';
+            jobs_list_add(jobs_list[0].pid, jobs_list[0].estado, jobs_list[0].cmd);
 
+            // Reset
+            jobs_list[0].pid = 0;
+            jobs_list[0].estado = 'F';
+            memset(jobs_list[0].cmd, '\0', COMMAND_LINE_SIZE);
+        }else{
+            fprintf(stderr, GRIS_T "señal SIGSTOP no enviada por %d (%s): el proceso en foreground es el shell", getpid(), mi_shell);
+        }
+    }
+    else{
+        printf(stderr, GRIS_T "señal SIGSTOP no enviada por %d (%s): no hay ningun proceso en foreground", getpid(), mi_shell);
+    }
+}
