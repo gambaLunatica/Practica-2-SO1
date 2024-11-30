@@ -164,6 +164,7 @@ int execute_line(char *line)
     char *args[ARGS_SIZE];
     char temp[COMMAND_LINE_SIZE];
     char *eliminador;
+    int backg = 0;
 
     // Guardar la línea original en `temp` antes de analizarla y corregir comentarios
     memset(temp, '\0', sizeof(temp));
@@ -180,11 +181,11 @@ int execute_line(char *line)
     if (tok > 0)
     {
         int ext = check_internal(args);
-        printf("ext = %d\n", ext);
         if (ext == 0)
         { // Comando externo
 
             pid_t pid = fork();
+            backg = is_background(args);
             int estado;
 
             if (pid < 0)
@@ -196,6 +197,7 @@ int execute_line(char *line)
             if (pid == 0)
             { // PROCESO HIJO
                 signal(SIGINT, SIG_IGN);
+                signal(SIGTSTP, SIG_IGN);
                 if (execvp(args[0], args) == -1)
                 {
                     fprintf(stderr, "%s: no se encontró la orden\n", args[0]);
@@ -204,12 +206,18 @@ int execute_line(char *line)
             }
             else
             { // PROCESO PADRE
+                if (backg)
+                {
+                    jobs_list_add(pid, 'E', line);
+                    printf("[%d]\t%d\t%c\t%s\n",n_job,pid,'E',line);
+                }
+                
                 jobs_list[0].pid = pid;
                 jobs_list[0].estado = 'E';
                 strncpy(jobs_list[0].cmd, line, COMMAND_LINE_SIZE);
 
-                printf("[execute_line()→ PID padre: %d (%s)]\n", getpid(), mi_shell);
-                printf("[execute_line()→ PID hijo: %d (%s)]\n", pid, line);
+                printf(stderr, GRIS_T"[execute_line()→ PID padre: %d (%s)]\n", getpid(), mi_shell);
+                printf(stderr, GRIS_T"[execute_line()→ PID hijo: %d (%s)]\n", pid, line);
 
                 /**  Bloquear hasta que llegue una señal
                 while (jobs_list[0].pid > 0)
@@ -464,7 +472,7 @@ int internal_jobs(char **args)
     {
         printf("[%d] %d %c %s\n", i, jobs_list[i].pid, jobs_list[i].estado, jobs_list[i].cmd);
     }
-        return 1;
+    return 1;
 }
 
 int internal_fg(char **args)
