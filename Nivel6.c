@@ -9,6 +9,9 @@
 #include <signal.h>
 #include <errno.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
+
+#include <fcntl.h>
 
 // definir promp
 #define PROMPT '$'
@@ -203,6 +206,7 @@ int execute_line(char *line)
             { // PROCESO HIJO
                 signal(SIGINT, SIG_IGN);
                 signal(SIGTSTP, SIG_IGN);
+                is_output_redirection(args);
                 if (execvp(args[0], args) == -1)
                 {
                     fprintf(stderr, "%s: no se encontró la orden\n", args[0]);
@@ -214,15 +218,15 @@ int execute_line(char *line)
                 if (backg)
                 {
                     jobs_list_add(pid, 'E', line);
-                    printf("[%d]\t%d\t%c\t%s\n",n_job,pid,'E',line);
+                    printf("[%d]\t%d\t%c\t%s\n", n_job, pid, 'E', line);
                 }
-                
+
                 jobs_list[0].pid = pid;
                 jobs_list[0].estado = 'E';
                 strncpy(jobs_list[0].cmd, line, COMMAND_LINE_SIZE);
 
-                fprintf(stderr, GRIS_T"[execute_line()→ PID padre: %d (%s)]\n", getpid(), mi_shell);
-                fprintf(stderr, GRIS_T"[execute_line()→ PID hijo: %d (%s)]\n", pid, line);
+                fprintf(stderr, GRIS_T "[execute_line()→ PID padre: %d (%s)]\n", getpid(), mi_shell);
+                fprintf(stderr, GRIS_T "[execute_line()→ PID hijo: %d (%s)]\n", pid, line);
 
                 /**  Bloquear hasta que llegue una señal
                 while (jobs_list[0].pid > 0)
@@ -482,14 +486,68 @@ int internal_jobs(char **args)
 
 int internal_fg(char **args)
 {
-    fprintf(stderr, GRIS_T "[internal_export()→ Envía un trabajo del background al foreground, o reactiva la ejecución en foreground de un trabajo que había sido detenido.]\n" RESET);
+    int pos = atoi(args[1]);
+    struct info_job *job = &jobs_list[pos];
+
+    if (pos <= 0 || pos < n_job)
+    {
+        fprintf(stderr, ROJO_T "fg %d: No existe ese trabajo\n" RESET, pos);
+        return 0;
+    }
+
+    if (job->estado == 'D')
+    {
+        kill(job->pid, SIGCONT);
+        fprintf(stderr, GRIS_T "[internal_fg()-> Señal %d (SIGCONT) enviada a %d (%s)]\n" RESET, SIGCONT, job->pid, job->cmd);
+    }
+
+    // Eliminacion del &
+    char *ptr;
+    ptr = strchr(job->cmd, '&');
+    if (ptr != NULL)
+    {
+        *ptr = '\0';
+    }
+
+    // mover a foreground
+    jobs_list[0] = *job;
+    jobs_list[0].estado = 'E';
+    jobs_list_remove(pos);
+    // Muestra por pantalla
+    printf("%s\n", jobs_list[0].cmd);
+    while (jobs_list[0].pid > 0)
+    {
+        pause();
+    }
     return 1;
 }
 
 int internal_bg(char **args)
 {
-    fprintf(stderr, GRIS_T "[internal_export()→ Envía un trabajo del background al foreground, o reactiva la ejecución en foreground de un trabajo que había sido detenido.]\n" RESET);
-    return 1;
+    if (args[1] != NULL)
+    {
+        int pos = atoi(args[1]);
+        struct info_job *job = &jobs_list[pos];
+        if (pos <= 0 || pos < n_job)
+        {
+            fprintf(stderr, ROJO_T "fg %d: No existe ese trabajo\n" RESET, pos);
+            return 0;
+        }
+        else if (job->estado = 'E')
+        {
+            fprintf(stderr, ROJO_T "bg %d: el trabajo ya esta en 2º plano\n" RESET, pos);
+        }
+        else
+        {
+            job->estado = 'E';
+            kill(job->pid, SIGCONT);
+            strcat(job->cmd, " &");
+            printf("[%d]\t%d\t%c\t%s\n", pos, job->pid, job->estado, job->cmd);
+        }
+        fprintf(stderr, GRIS_T "[internal_bg()→ señal %d (SIGCONT) enviada a %d (%s)]\n" RESET, SIGCONT, job->pid, job->cmd);
+        return 1;
+    }
+    return 0;
 }
 void ctrlc(int signum)
 {
@@ -595,11 +653,56 @@ void ctrlz(int signum)
             jobs_list[0].pid = 0;
             jobs_list[0].estado = 'F';
             memset(jobs_list[0].cmd, '\0', COMMAND_LINE_SIZE);
-        }else{
+        }
+        else
+        {
             fprintf(stderr, GRIS_T "señal SIGSTOP no enviada por %d (%s): el proceso en foreground es el shell", getpid(), mi_shell);
         }
     }
-    else{
+    else
+    {
         fprintf(stderr, GRIS_T "señal SIGSTOP no enviada por %d (%s): no hay ningun proceso en foreground", getpid(), mi_shell);
     }
 }
+int is_output_redirection(char **args)
+{
+    int f;
+    int i = 0;
+    while (args[i] != NULL)
+    {
+        if (*args[i] == '>')
+        {
+            if (args[i + 1] != NULL)
+            {
+                f = open(args[i + 1], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+                if (f != -1)
+                {
+                    args[i] = NULL;
+                    args[i + 1] = NULL;
+                    if (dup2(f, 1) == -1)
+                    {
+                        perror("dup2");
+                    }
+                    if (close(f) == -1)
+                    {
+                        perror("close");
+                    }
+                    return 1;
+                }
+                else
+                {
+                    fprintf(stderr, ROJO_T "Error al crear el fichero" RESET);
+                    return 0;
+                }
+            }
+            else
+            {
+                fprintf(stderr, ROJO_T "Sintaxis incorecta" RESET);
+                return 0;
+            }
+        }
+        i++;
+    }
+    return 0;
+}
+

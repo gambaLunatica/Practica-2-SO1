@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 
     // Guardar el nombre del comando en mi_shell a partir de argv[0]
     strncpy(mi_shell, argv[0], COMMAND_LINE_SIZE);
-    mi_shell[COMMAND_LINE_SIZE - 1] = '\0'; // Asegurar terminación de la cadena
+    
 
     // bucle infinito
     while (1)
@@ -159,7 +159,7 @@ int execute_line(char *line)
     char temp[COMMAND_LINE_SIZE];
     char *eliminador;
 
-    // Guardar la línea original en `temp` antes de analizarla y corregir comentarios
+    /** Guardar la línea original en `temp` antes de analizarla y corregir comentarios
     memset(temp, '\0', sizeof(temp));
     strcpy(temp, line);
     eliminador = strchr(temp, '#');
@@ -167,6 +167,7 @@ int execute_line(char *line)
     {
         *eliminador = '\0'; // Eliminar comentarios en la línea
     }
+    */
 
     int tok = parse_args(args, line); // Obtener los tokens de la línea de comandos
 
@@ -174,21 +175,19 @@ int execute_line(char *line)
     if (tok > 0)
     {
         int ext = check_internal(args);
-
-        if (ext == 2)
+        int estado = 0;
+        if (ext > 0)
         { // Comando externo
             pid_t pid = fork();
-            int estado;
-
             if (pid < 0)
             {
                 perror("fork");
                 return -1;
             }
 
-            if (pid == 0)
+            else if (pid == 0)
             { // PROCESO HIJO
-                if (execvp(args[0], args) == -1)
+                if (execvp(args[0], args))
                 {
                     fprintf(stderr, "%s: no se encontró la orden\n", args[0]);
                     exit(-1); // Terminar el hijo si execvp falla
@@ -207,7 +206,7 @@ int execute_line(char *line)
                 memset(jobs_list[0].cmd, 0, COMMAND_LINE_SIZE);
             }
         }
-        return 1;
+        
     }
     return 0;
 }
@@ -419,7 +418,7 @@ int internal_source(char **args)
     }
 
     // Leer línea a línea del archivo
-    while (fgets(line, sizeof(line), file) != NULL)
+    while (fgets(line, COMMAND_LINE_SIZE, file) != NULL)
     {
         // Eliminar el salto de línea al final de la línea leída
         char *newline = strchr(line, '\n');
