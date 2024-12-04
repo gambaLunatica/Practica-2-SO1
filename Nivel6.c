@@ -363,10 +363,15 @@ int check_internal(char **args)
     }
     return 1;
 }
-
+/**
+ * internal_cd cambia el directorio actual
+ * @param args: array de punteros a char
+ * @return 1 si tiene éxito
+ * @return -1 si hay un error
+ */
 int internal_cd(char **args)
 {
-    char buf[256]; // Buffer para almacenar el directorio actual
+    char buf[COMMAND_LINE_SIZE]; // Buffer para almacenar el directorio actual
 
     // Caso: comando "cd" sin argumentos (ir al directorio HOME)
     if (args[1] == NULL)
@@ -376,14 +381,15 @@ int internal_cd(char **args)
          */
         if (chdir(getenv("HOME")) == -1)
         {
-            perror("chdir");
+            perror(ROJO_T "Error al cambiar al directorio HOME" RESET);
             return -1;
         }
     }
     // Caso: comando "cd" con uno o más argumentos
     else
     {
-        char temp[256];
+        char temp[COMMAND_LINE_SIZE];
+        char path[COMMAND_LINE_SIZE] = {0};
         strcpy(temp, args[1]);
 
         // Bucle para concatenar argumentos adicionales si existen
@@ -395,6 +401,19 @@ int internal_cd(char **args)
 
         // Eliminación de caracteres especiales
         char *dir = eliminar_chars(temp);
+        // Si hay comillas simples, dobles o caracteres de escape
+        if (strchr(args[1], '\'') || strchr(args[1], '"') || strchr(args[1], '\\')) {
+            int i = 1; // Inicio en args[1]
+            while (args[i] != NULL) {
+                strcat(path, args[i]);
+                if (args[i + 1] != NULL) {
+                    strcat(path, " "); // Añadir espacio entre argumentos
+                }
+                i++;
+            }
+        } else { // Directorio simple
+            strcpy(path, args[1]);
+        }
 
         // Cambiar al directorio especificado
         if (chdir(dir) == -1)
@@ -402,13 +421,16 @@ int internal_cd(char **args)
             perror("chdir");
             return -1;
         }
-        else
-        {
-            getcwd(buf, sizeof(buf));
-            printf("Directorio actual: %s\n", buf);
-        }
     }
-
+// Mostrar el directorio actual
+    if (getcwd(buf, sizeof(buf)) != NULL) {
+#if DEBUGN1
+        fprintf(stderr, GRIS_T "[internal_cd()→ PWD: %s]\n" RESET, buf);
+#endif
+    } else {
+        perror(ROJO_T "getcwd() error" RESET);
+        return -1;
+    }
     return 1;
 }
 
