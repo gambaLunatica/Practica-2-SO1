@@ -27,6 +27,8 @@
 #define BLANCO_T "\x1b[97m"
 #define NEGRITA "\x1b[1m"
 
+#define DEBUGN4 1
+
 // definición funciones
 void imprimir_prompt();
 char *read_line(char *line);
@@ -178,7 +180,6 @@ int execute_line(char *line)
     if (tok > 0)
     {
         int ext = check_internal(args);
-        printf("ext = %d\n", ext);
         if (ext == 0)
         { // Comando externo
         
@@ -206,8 +207,8 @@ int execute_line(char *line)
                 jobs_list[0].estado = 'E';
                 strncpy(jobs_list[0].cmd, line, COMMAND_LINE_SIZE);
 
-                printf("[execute_line()→ PID padre: %d (%s)]\n", getpid(), mi_shell);
-                printf("[execute_line()→ PID hijo: %d (%s)]\n", pid, line);
+                fprintf(stderr, GRIS_T"[execute_line()→ PID padre: %d (%s)]\n", getpid(), mi_shell);
+                fprintf(stderr, GRIS_T"[execute_line()→ PID hijo: %d (%s)]\n", pid, line);
 
                 /**  Bloquear hasta que llegue una señal
                 while (jobs_list[0].pid > 0)
@@ -473,46 +474,64 @@ int internal_bg(char **args)
     fprintf(stderr, GRIS_T "[internal_export()→ Envía un trabajo del background al foreground, o reactiva la ejecución en foreground de un trabajo que había sido detenido.]\n" RESET);
     return 1;
 }
-void ctrlc(int signum)
-{
-    printf("\n[ctrlc()→ Señal SIGINT recibida]\n");
-    struct info_job job = jobs_list[0];
-    if (job.pid > 0)
-    {
-        if (strcmp(job.cmd, mi_shell) != 0)
-        {
-            printf("[ctrlc()→ Enviando SIGTERM al proceso hijo %d (%s)]\n", jobs_list[0].pid, jobs_list[0].cmd);
-            kill(job.pid, SIGTERM);
+void ctrlc(int signum){
+    signal(SIGINT,ctrlc);
+    pid_t pid;
+    pid = getpid();
+    if(jobs_list[0].pid>0){
+        if(strcmp(jobs_list[0].cmd,mi_shell)!=0){
+            if(kill(jobs_list[0].pid,SIGTERM)==0){
+                #if DEBUGN4
+                    fprintf(stderr,GRIS_T"\n[ctrlc()->Soy el proceso con PID %d (%s), el proceso en foreground es %d (%s)]"RESET,
+                    pid,mi_shell,jobs_list[0].pid,jobs_list[0].cmd);
+                    fprintf(stderr,GRIS_T"\n[ctrlc()->Señal %d enviada a %d (%s) por %d (%s)]"RESET,SIGTERM,jobs_list[0].pid,jobs_list[0].cmd,
+                    pid,mi_shell);
+                #endif               
+            }else if(kill(jobs_list[0].pid,SIGTERM)==-1){
+                perror("kill");
+            }
+            else{
+                fprintf(stderr,ROJO_T"ERROR al enviar señal SIGTERM\n"RESET);
+            }
+        }else{
+            #if DEBUGN4
+                fprintf(stderr,GRIS_T"\n[ctrlc()->Soy el proceso con PID %d (%s), el proceso en foreground es %d (%s)]"RESET,pid,mi_shell,jobs_list[0].pid,jobs_list[0].cmd);
+                fprintf(stderr,GRIS_T"\n[ctrlc()→ Señal %d no enviada por %d (%s) debido a que el proceso en foreground es el shell]"RESET,SIGTERM,jobs_list[0].pid, mi_shell);
+            #endif
         }
-        else
-        {
-            printf("[ctrlc()→ No hay proceso en foreground o es el shell]\n");
-        }
-    }
-    else
-    {
-        printf("señal SIGTERM no enviada: no hay ningun proceso en foreground");
+    }else{
+        #if DEBUGN4
+            fprintf(stderr,GRIS_T"\n[ctrlc()→ Soy el proceso con PID %d (%s), el proceso en foreground es %d ()]"RESET, pid,mi_shell, jobs_list[0].pid);
+            fprintf(stderr,GRIS_T"\n[ctrlc()→ Señal %d no enviada por %d (%s) debido a que no hay proceso en foreground]"RESET,SIGTERM,pid,mi_shell);
+        #endif
+        return;
     }
 }
 void reaper(int signum)
 {
-    signal(SIGCHLD, reaper);
-    int status = 0;
-    int pid = 0;
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
-    {
-        printf("[reaper()→ Proceso hijo %d (%s) finalizado ", pid, jobs_list[0].cmd);
-        if (WIFEXITED(status))
-        {
-            printf("con exit code %d]\n", WEXITSTATUS(status));
+    signal(SIGCHLD,reaper);
+    pid_t pid;
+    int status;
+    while((pid=waitpid(-1,&status,WNOHANG))>0){
+        if(jobs_list[0].pid == pid){
+            #if DEBUGN4
+                if(WIFEXITED(status)){
+                    fprintf(stderr,GRIS_T"\n[reaper()->Proceso hijo %d (%s) en foreground finalizado con exit() %d]\n"RESET,pid,jobs_list[0].cmd,WEXITSTATUS(status));
+                }else if(WIFSIGNALED(status)){
+                    fprintf(stderr,GRIS_T"\n[reaper()->Proceso hijo %d (%s) en foreground finalizado por señal %d]\n"RESET, pid,jobs_list[0].cmd,WTERMSIG(status));                
+                }
+            #endif
+            jobs_list[0].pid=0;
+            jobs_list[0].estado='F';
+            memset(jobs_list[0].cmd,'\0',sizeof(jobs_list[0].cmd));
+        }else{
+            #if DEBUGN4
+                if(WIFEXITED(status)){
+                    fprintf(stderr,GRIS_T"\n[reaper()->Proceso hijo %d finalizado con exit() %d]\n"RESET,pid,WEXITSTATUS(status));
+                }else if(WIFSIGNALED(status)){
+                    fprintf(stderr,GRIS_T"\n[reaper()->Proceso hijo %d finalizado por señal %d]\n"RESET,pid,WTERMSIG(status));
+                }
+            #endif
         }
-        else if (WIFSIGNALED(status))
-        {
-            printf("por señal %d]\n", WTERMSIG(status));
-        }
-
-        jobs_list[0].pid = 0;
-        jobs_list[0].estado = 'F';
-        memset(jobs_list[0].cmd, '\0', COMMAND_LINE_SIZE);
     }
 }
