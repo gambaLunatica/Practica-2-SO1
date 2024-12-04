@@ -30,6 +30,9 @@
 #define BLANCO_T "\x1b[97m"
 #define NEGRITA "\x1b[1m"
 
+// Debugs
+#define DEBUGN1 1
+
 // definición funciones
 void imprimir_prompt();
 char *read_line(char *line);
@@ -50,6 +53,7 @@ int is_background(char **args);
 int jobs_list_add(pid_t pid, char estado, char *cmd);
 int jobs_lsit_find(pid_t pid);
 int jobs_list_remove(int pos);
+int is_output_redirection(char **args);
 
 // Variable para leer una line
 #define COMMAND_LINE_SIZE 1024
@@ -135,7 +139,7 @@ char *read_line(char *line)
     // leer linea
     char *ret = fgets(line, COMMAND_LINE_SIZE, stdin);
     // si es diferente de NULL o que empieze por #
-    if (ret && *ret != '#')
+    if (ret && strlen(line) > 0)
     {
         /**
          * memchr busca la primera aparación de un caracter en los primeros n bytes de una secuencia
@@ -245,27 +249,36 @@ int execute_line(char *line)
     }
     return 0;
 }
-
+/**
+ * parse_args divide una cadena en una serie de tokens
+ * @param args: array de punteros a char
+ * @param line: cadena de entrada
+ * @return número de tokens
+ * @return -1 si hay un error
+ */
 int parse_args(char **args, char *line)
 {
     char *tok;
     int contTok = 0;
 
-    // obtenemso el primer token
     /**
-     *
+     * strtok divide una cadena en una serie de tokens
+     * @param line: cadena de entrada
+     * @param delimitador: cadena de caracteres que delimitan los tokens
+     * @return puntero al token
      */
     tok = strtok(line, " \t\n\r");
 
     // bucle de lectura de todos los tokens de la linea
     while (tok != NULL)
     {
-        if (tok == NULL)
+        /**
+        if (tok == "#")
         {
+            // ignorar los comentarios
             args[contTok] = NULL;
-            return -1;
             break;
-        }
+        }*/
 
         args[contTok] = tok;
         contTok++;
@@ -274,29 +287,45 @@ int parse_args(char **args, char *line)
     }
     // final tokens
     args[contTok] = NULL;
+
     // MOstramos los tokens
     for (int j = 0; j < contTok; j++)
     {
         if ((char)*args[j] == '#')
         {
+#if DEBUGN1
             fprintf(stderr, GRIS_T "[parse_args()→ token %d: %s]\n" RESET, j, args[j]);
+#endif
             args[j] = NULL;
+#if DEBUGN1
             fprintf(stderr, GRIS_T "[parse_args()→ token %d corregido: %s]\n" RESET, j, args[j]);
+#endif
             return -1;
         }
         else
         {
+#if DEBUGN1
             fprintf(stderr, GRIS_T "[parse_args()→ token %d: %s]\n" RESET, j, args[j]);
+#endif
         }
     }
-
+#if DEBUGN1
     fprintf(stderr, GRIS_T "[parse_args()→ token %d: %s]\n" RESET, contTok, args[contTok]);
+#endif
     return contTok;
 }
-
+/**
+ * check_internal comprueba si el comando es interno
+ * @param args: array de punteros a char
+ * @return 1 si es interno
+ * @return 0 si es externo
+ */
 int check_internal(char **args)
 {
     const char *coms[] = {"cd", "export", "source", "jobs", "fg", "bg"};
+#if DEBUGN1
+    fprintf(stderr, GRIS_T "[check_internal()→ Comando recibido: %s]\n" RESET, args[0]);
+#endif
 
     if (strcmp(args[0], coms[0]) == 0)
     {
@@ -324,7 +353,7 @@ int check_internal(char **args)
     }
     else if (strcmp(args[0], "exit") == 0)
     {
-        printf("bye bye\n");
+        fprintf(stderr, VERDE_T "bye bye\n" RESET);
         exit(0);
     }
     else
@@ -705,4 +734,3 @@ int is_output_redirection(char **args)
     }
     return 0;
 }
-
