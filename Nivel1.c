@@ -23,6 +23,7 @@
 #define BLANCO_T "\x1b[97m"
 #define NEGRITA "\x1b[1m"
 
+#define DEBUGN1 1
 // definición funciones
 void imprimir_prompt();
 char *read_line(char *line);
@@ -126,6 +127,13 @@ int execute_line(char *line)
     return 1;
 }
 
+/**
+ * parse_args divide una cadena en una serie de tokens
+ * @param args: array de punteros a char
+ * @param line: cadena de entrada
+ * @return número de tokens
+ * @return -1 si hay un error
+ */
 int parse_args(char **args, char *line)
 {
     char *tok;
@@ -133,44 +141,55 @@ int parse_args(char **args, char *line)
 
     // obtenemso el primer token
     /**
-     *
+     * strtok divide una cadena en una serie de tokens
+     * @param line: cadena de entrada
+     * @param delimitador: cadena de caracteres que delimitan los tokens
+     * @return puntero al token
      */
     tok = strtok(line, " \t\n\r");
 
     // bucle de lectura de todos los tokens de la linea
     while (tok != NULL)
     {
-        if (tok == NULL)
+        /** 
+        if (tok[0] == '#')
         {
+            // ignorar los comentarios
             args[contTok] = NULL;
-            return -1;
             break;
-        }
+        }*/
 
         args[contTok] = tok;
         contTok++;
         // Obtenemos el siguiente token
         tok = strtok(NULL, " \t\n\r");
     }
-    //final tokens
+    // final tokens
     args[contTok] = NULL;
-    //MOstramos los tokens
+    // MOstramos los tokens
     for (int j = 0; j < contTok; j++)
     {
         if ((char)*args[j] == '#')
         {
+#if DEBUGN1
             fprintf(stderr, GRIS_T "[parse_args()→ token %d: %s]\n" RESET, j, args[j]);
+#endif
             args[j] = NULL;
+#if DEBUGN1
             fprintf(stderr, GRIS_T "[parse_args()→ token %d corregido: %s]\n" RESET, j, args[j]);
+#endif
             return -1;
         }
         else
         {
+#if DEBUGN1
             fprintf(stderr, GRIS_T "[parse_args()→ token %d: %s]\n" RESET, j, args[j]);
+#endif
         }
     }
-
+#if DEBUGN1
     fprintf(stderr, GRIS_T "[parse_args()→ token %d: %s]\n" RESET, contTok, args[contTok]);
+#endif
     return contTok;
 }
 
@@ -220,7 +239,7 @@ int internal_cd(char **args)
     fprintf(stderr, GRIS_T "[internal_cd()→ Esta función cambiará de directorio]\n" RESET);
     return 1;
 }
-//NO furula lol
+// NO furula lol
 int internal_export(char **args)
 {
     fprintf(stderr, GRIS_T "[internal_export()→ Esta función asignará valores a variablescd de entorno]\n" RESET);
